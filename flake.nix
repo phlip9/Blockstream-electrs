@@ -61,15 +61,37 @@
           bin = craneLib.buildPackage (commonArgs // {
             inherit cargoArtifacts;
 
-            # TODO: do testing by providing executables via *_EXE env var for {bitcoin,elements,electrum}d
-            doCheck = false;
+            doCheck = true;
+
+            # This hook runs before `cargo test` and sets envs so the e2e tests
+            # can find the bitcoind/electrum binaries.
+            # WARNING: the nixpkgs versions of these binaries != the expected
+            # Cargo.toml versions.
+            preCheck = ''
+              export RUST_BACKTRACE=1
+              export BITCOIND_EXE=${pkgs.bitcoind}/bin/bitcoind
+              export ELECTRUMD_EXE=${pkgs.electrum}/bin/electrum
+            '';
           });
           binLiquid = craneLib.buildPackage (commonArgs // {
             inherit cargoArtifacts;
             cargoExtraArgs = "--features liquid";
 
-            # TODO: do testing by providing executables via *_EXE env var for {bitcoin,elements,electrum}d
-            doCheck = false;
+            doCheck = true;
+
+            # This hook runs before `cargo test` and sets envs so the e2e tests
+            # can find the elementsd/electrum binaries.
+            # WARNING: the nixpkgs versions of these binaries != the expected
+            # Cargo.toml versions.
+            preCheck = ''
+              export RUST_BACKTRACE=1
+              export ELEMENTSD_EXE=${pkgs.elements}/bin/elementsd
+              export ELECTRUMD_EXE=${pkgs.electrum}/bin/electrum
+
+              # phlip9: this got typo'ed upstream -- remove this line when
+              # <https://github.com/RCasatta/elementsd/pull/17> gets merged.
+              export ELECTRSD_SKIP_DOWNLOAD=1
+            '';
           });
 
 

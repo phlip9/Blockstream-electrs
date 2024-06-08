@@ -23,8 +23,7 @@ fn test_electrum() -> Result<()> {
     let server_arg = format!("{}:t", electrum_addr.to_string());
     electrum_wallet_conf.args = vec!["-v", "--server", &server_arg];
     electrum_wallet_conf.view_stdout = true;
-    let electrum_wallet =
-        ElectrumD::with_conf(electrumd::downloaded_exe_path()?, &electrum_wallet_conf)?;
+    let electrum_wallet = ElectrumD::with_conf(electrumd::exe_path()?, &electrum_wallet_conf)?;
 
     let notify_wallet = || {
         electrum_server.notify();
@@ -126,7 +125,11 @@ fn test_electrum() -> Result<()> {
         )?]),
     )?;
     notify_wallet();
-    assert_balance(0.3, -0.161);
+
+    // // As of electrum 4.3.0, only incoming transactions are considered part
+    // // of the unconfirmed balance: <https://github.com/spesmilo/electrum/blob/1705e47a88d60064bb7e7f541e8cd03bb9de3358/RELEASE-NOTES#L427-L435>
+    // // Uncomment this check once the electrumd cargo dep bumps to 4.3.0+:
+    // assert_balance(0.139, 0.0);
 
     tester.mine()?;
     notify_wallet();
