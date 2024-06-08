@@ -20,27 +20,44 @@
     flake-utils.lib.eachDefaultSystem
       (system:
         let
-          overlays = [ (import rust-overlay) ];
+          lib = nixpkgs.lib;
           pkgs = import nixpkgs {
-            inherit system overlays;
+            inherit system;
+            overlays = [ (import rust-overlay) ];
           };
           rustToolchain = pkgs.pkgsBuildHost.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
 
           craneLib = (crane.mkLib pkgs).overrideToolchain rustToolchain;
 
-          src = craneLib.cleanCargoSource ./.; 
+          src = craneLib.cleanCargoSource ./.;
 
-          nativeBuildInputs = with pkgs; [ rustToolchain clang ]; # required only at build time
-          buildInputs = with pkgs; [ ]; # also required at runtime
+          # Dependencies required only at build time
+          nativeBuildInputs = [ pkgs.clang ];
+
+          # Dependencies required at runtime
+          buildInputs = [ ] ++ lib.optionals pkgs.stdenv.isDarwin [
+            pkgs.darwin.apple_sdk.frameworks.Security
+          ];
 
           commonArgs = {
             inherit src buildInputs nativeBuildInputs;
-            LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
-            ELEMENTSD_SKIP_DOWNLOAD = true;
-            BITCOIND_SKIP_DOWNLOAD = true;
-            ELECTRUMD_SKIP_DOWNLOAD = true;
+            strictDeps = true; # ensure nativeBuildInputs don't leak to runtime
+
+            env = {
+              # For rocksdb
+              LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
+
+              # nix builds in a sandbox without network access, so we have to
+              # stop the bitcoind/electrumd/elementsd crates from downloading
+              # binaries and instead provide them manually below.
+              BITCOIND_SKIP_DOWNLOAD = true;
+              ELECTRUMD_SKIP_DOWNLOAD = true;
+              ELEMENTSD_SKIP_DOWNLOAD = true;
+            };
           };
+
           cargoArtifacts = craneLib.buildDepsOnly commonArgs;
+
           bin = craneLib.buildPackage (commonArgs // {
             inherit cargoArtifacts;
 
@@ -59,13 +76,11 @@
         in
         with pkgs;
         {
-          packages =
-            {
-              # that way we can build `bin` specifically,
-              # but it's also the default.
-              inherit bin;
-              default = bin;
-            };
+          packages = {
+            default = bin;
+            blockstream-electrs = bin;
+            blockstream-electrs-liquid = binLiquid;
+          };
 
           apps."blockstream-electrs-liquid" = {
             type = "app";
